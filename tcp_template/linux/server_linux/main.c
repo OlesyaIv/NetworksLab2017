@@ -71,5 +71,9 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    /* Closing socket */
+    shutdown(sockfd, SHUT_RDWR);
+    close(sockfd);
+
     return 0;
 }
