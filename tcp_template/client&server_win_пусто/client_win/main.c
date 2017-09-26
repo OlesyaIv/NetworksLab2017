@@ -1,27 +1,34 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <winsock2.h>
 #include <netdb.h>
-#include <netinet/in.h>
+//#include <netinet/in.h>
 #include <unistd.h>
-
 #include <string.h>
 
     /* Function redn */
-int readn(int s, char* buf, int b_remain) {
-    int b_rcvd = 0;
-    int rc;
-    while(b_remain) {
-        rc = read(s, buf + b_rcvd, b_remain);
-        if (rc < 1) {
-            return rc;
+
+int readn(int s, char* buf, int buflen, int f) {
+
+    int result = 0;
+    int recBytes = 0;
+
+    while(recBytes < buflen) {
+
+        result = read(s, buf + recBytes, buflen - recBytes);
+//	result = recv(s, buf + recBytes, buflen, f);
+        
+	if (result < 1) {
+        	printf("Error: NOT reading");
+		exit(1);
         }
-        b_rcvd += rc;
-        b_remain -= rc;
+
+        recBytes += result;
     }
     
-    return b_rcvd;
+    return recBytes;
 }
+
 
     /* Function main */
 int main(int argc, char *argv[]) {
@@ -31,6 +38,12 @@ int main(int argc, char *argv[]) {
     struct hostent *server;
 
     char buffer[256];
+
+    WSADATA wsaData;
+    if(WSAStartup(MAKEWORD(2,2),&wsaData!=0)){
+	printf("ERROR: startup failed");
+	return 1;
+    }
 
     if (argc < 3) {
         fprintf(stderr, "usage %s hostname port\n", argv[0]);
@@ -54,14 +67,14 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    bzero((char *) &serv_addr, sizeof(serv_addr));
+    memset((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
-    bcopy(server->h_addr, (char *) &serv_addr.sin_addr.s_addr, (size_t) server->h_length);
+    memcpy((char *) &serv_addr.sin_addr.s_addr, server-> h_addr, (size_t) server->h_length);
     serv_addr.sin_port = htons(portno);
 
     /* Now connect to the server */
     if (connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-        perror("ERROR connecting");
+        perror("ERROR: NOT connecting");
         exit(1);
     }
 
@@ -69,12 +82,12 @@ int main(int argc, char *argv[]) {
        * will be read by server
     */
 
-    printf("Please enter the message: ");
-    bzero(buffer, 256);
+    printf("Please, enter the message: ");
+    memset(buffer,0, 256);
     fgets(buffer, 255, stdin);
 
     /* Send message to the server */
-    n = write(sockfd, buffer, strlen(buffer));
+    n = send(sockfd, buffer, strlen(buffer), 0);
 
     if (n < 0) {
         perror("ERROR writing to socket");
@@ -82,17 +95,18 @@ int main(int argc, char *argv[]) {
     }
 
     /* Now read server response */
-    bzero(buffer, 256);
-    n = read(sockfd, buffer, 255);
+    memset(buffer, 256);
+    n = recv(sockfd, buffer, 255, 0);
 
     if (n < 0) {
-        perror("ERROR reading from socket");
+        perror("ERROR: NOT reading from socket");
         exit(1);
     }
 
     /* Closing socket */
     shutdown(sockfd, SHUT_RDWR);
-    close(sockfd);
+    closesocket(sockfd);
+    WSACleanup();
 
     printf("%s\n", buffer);
     return 0;
