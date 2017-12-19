@@ -1,0 +1,87 @@
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#define BUFSIZE 1024
+
+int main(int argc, char **argv) {
+  int sockfd; 
+  int portno; 
+
+  int clientlen; 
+  struct sockaddr_in serveraddr;
+  struct sockaddr_in clientaddr;
+  struct hostent *hostp;
+
+  char buf[BUFSIZE];
+  char *hostaddrp;
+ 
+  int optval; 
+  int n;
+
+  if (argc != 2) {
+    fprintf(stderr, "usage: %s <port>\n", argv[0]);
+    exit(1);
+  }
+  portno = atoi(argv[1]);
+
+// Создание сокета
+  sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (sockfd < 0) {
+	printf("ERROR opening socket");
+	exit(1)
+  }
+
+
+
+  // "ERROR on binding: Address already in use" error.
+  optval = 1;
+  setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval , sizeof(int));
+
+  bzero((char *) &serveraddr, sizeof(serveraddr));
+  serveraddr.sin_family = AF_INET;
+  serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  serveraddr.sin_port = htons((unsigned short)portno);
+
+  if (bind(sockfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) < 0) {
+	printf("ERROR on binding");
+	exit(1)
+  }
+
+  clientlen = sizeof(clientaddr);
+
+  while (1) {
+ // Сообщение от клиента
+    bzero(buf, BUFSIZE);
+    n = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *) &clientaddr, (socklen_t *) &clientlen);
+    if (n < 0) {
+	printf("ERROR in recvfrom");
+	exit(1)
+    }
+
+    hostp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, sizeof(clientaddr.sin_addr.s_addr), AF_INET);
+    if (hostp == NULL) {
+	printf("ERROR on gethostbyaddr");
+	exit(1)
+    }
+    hostaddrp = inet_ntoa(clientaddr.sin_addr);
+    if (hostaddrp == NULL) {
+	printf("ERROR on inet_ntoa\n");
+	exit(1)
+    }
+    printf("server received datagram from %s (%s)\n", hostp->h_name, hostaddrp);
+    printf("server received %d/%d bytes: %s\n", strlen(buf), n, buf);
+
+ // Ответ
+    n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *) &clientaddr, clientlen);
+    if (n < 0)
+    {
+	printf("ERROR in sendto");
+	exit(1)
+    }
+  }
+}

@@ -1,0 +1,67 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <netinet/in.h>
+#include <netdb.h>
+
+#define BUFSIZE 1024
+
+int main(int argc, char **argv) {
+    int sockfd, portno, n;
+    int serverlen;
+
+    struct sockaddr_in serveraddr;
+    struct hostent *server;
+
+    char *hostname;
+    char buf[BUFSIZE];
+
+    if (argc != 3) {
+       fprintf(stderr,"usage: %s <hostname> <port>\n", argv[0]);
+       exit(0);
+    }
+
+    hostname = argv[1];
+    portno = atoi(argv[2]);
+
+ // Создание сокета
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+	printf("ERROR opening socket");
+	exit(1)
+    }
+
+    server = gethostbyname(hostname);
+    if (server == NULL) {
+        fprintf(stderr,"ERROR, no such host as %s\n", hostname);
+        exit(0);
+    }
+
+    bzero((char *) &serveraddr, sizeof(serveraddr));
+    serveraddr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, (char *)&serveraddr.sin_addr.s_addr, server->h_length);
+    serveraddr.sin_port = htons(portno);
+
+  //Сообщение серверу
+    bzero(buf, BUFSIZE);
+    printf("Message TO server: ");
+    fgets(buf, BUFSIZE, stdin);
+
+  //Отправка сообщения серверу
+    serverlen = sizeof(serveraddr);
+    n = sendto(sockfd, buf, strlen(buf), 0, (struct sockaddr *) &serveraddr,serverlen);
+    if (n < 0) {
+	printf("ERROR in sendto");
+	exit(1)
+    }
+  // Ответ от сервера
+    n = recvfrom(sockfd, buf, strlen(buf), 0, (struct sockaddr*) &serveraddr, (socklen_t *) &serverlen);
+    if (n < 0) {
+	printf("ERROR in recvfrom");
+	exit(1)
+    }
+    printf("Echo from server: %s", buf);
+    return 0;
+}
+
